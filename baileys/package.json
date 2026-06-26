@@ -1,0 +1,16 @@
+{
+  "name": "whatsapp-forward-baileys",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Auto-forward new messages from selected WhatsApp groups to another number (personal use).",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "groups": "node list-groups.js"
+  },
+  "dependencies": {
+    "baileys": "7.0.0-rc13",
+    "pino": "^9.5.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

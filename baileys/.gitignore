@@ -1,0 +1,9 @@
+# WhatsApp session — your login. Never commit.
+auth/
+
+# Personal config — phone numbers & group IDs. Use config.example.json as template.
+config.json
+
+# Dependencies, logs
+node_modules/
+*.log

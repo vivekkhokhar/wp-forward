@@ -1,0 +1,33 @@
+# === WhatsApp session — THIS IS YOUR LOGIN. Never commit. ===
+auth/
+baileys/auth/
+
+# === Secrets / keys / credentials ===
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+!*.example
+
+# Server connection details (your instance IP / SSH access)
+instance.env
+
+# Personal config — contains phone numbers & group IDs (incl. third parties)
+baileys/config.json
+
+# === Dependencies & build ===
+node_modules/
+
+# === Logs & process manager ===
+*.log
+forward.log
+.pm2/
+
+# === OS / editor junk ===
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

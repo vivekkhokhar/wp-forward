@@ -1,0 +1,18 @@
+{
+  "rules": [
+    {
+      "name": "Device A",
+      "target": "<countrycode+number, digits only e.g. 9198xxxxxxxx>",
+      "groups": ["<group-jid>@g.us"],
+      "contacts": ["<countrycode+number>"],
+      "forwardAllDMs": false
+    }
+  ],
+  "skipFromMe": true,
+  "minDelayMs": 2000,
+  "prefixGroupName": true,
+  "verbose": true,
+  "chatLabels": {
+    "<jid>@s.whatsapp.net": "Friendly label shown in the header"
+  }
+}
