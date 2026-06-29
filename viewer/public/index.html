@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WhatsApp Archive</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <header class="side-head">
+        <input id="search" type="search" placeholder="Search chats…" />
+        <button id="refresh" title="Reload chats">⟳</button>
+      </header>
+      <div id="chats" class="chats"></div>
+    </aside>
+    <main id="main">
+      <header id="convo-head">
+        <div class="convo-meta"><span id="convo-title">Select a chat</span><span id="convo-sub"></span></div>
+        <label id="live-toggle"><input type="checkbox" id="live" /><span>🟢 Live</span></label>
+      </header>
+      <div id="messages" class="messages"><div class="empty">Pick a chat on the left.</div></div>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

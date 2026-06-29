@@ -61,8 +61,9 @@ async function runSocket({ onOpen, onMessage } = {}) {
 
     if (onMessage) {
       sock.ev.on('messages.upsert', ({ messages, type }) => {
-        if (type !== 'notify') return; // 'notify' = live new messages (skip history sync)
-        for (const msg of messages) onMessage(msg);
+        // Pass every message through with its type; index.js logs all arrivals and
+        // forwards only live ('notify') ones.
+        for (const msg of messages) onMessage(msg, type);
       });
     }
   };

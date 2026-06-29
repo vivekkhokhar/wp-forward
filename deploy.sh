@@ -16,7 +16,7 @@ SSH_OPTS=(-i "$WA_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/nu
 
 echo "→ syncing code to $WA_USER@$WA_HOST:~/wa-forward"
 rsync -az --delete \
-  --exclude node_modules --exclude auth --exclude '*.log' \
+  --exclude node_modules --exclude auth --exclude '*.log' --exclude .env \
   -e "ssh ${SSH_OPTS[*]}" \
   "$SRC" "$WA_USER@$WA_HOST:~/wa-forward/"
 

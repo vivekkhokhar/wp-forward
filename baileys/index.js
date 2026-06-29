@@ -8,9 +8,13 @@
  *   npm run groups   # list group JIDs to put in a rule
  *   npm start        # run the forwarder
  */
+require('dotenv').config({ path: __dirname + '/.env' }); // loads OPENAI_API_KEY from ./.env
 const fs = require('fs');
 const path = require('path');
+const { getContentType } = require('baileys');
 const { runSocket } = require('./socket');
+const store = require('./store');
+const ai = require('./ai');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 
@@ -25,11 +29,19 @@ try {
   console.error('Could not read config.json:', e.message);
   process.exit(1);
 }
+store.init(config.persist || {});
+function initAi() {
+  const p = config.persist || {};
+  ai.init({ ...(config.ai || {}), region: p.region, tableName: p.tableName, mediaBucket: p.mediaBucket });
+}
+initAi();
 
 // Hot-reload config so edits take effect without a restart.
 fs.watchFile(CONFIG_PATH, { interval: 1000 }, () => {
   try {
     config = loadConfig();
+    store.init(config.persist || {});
+    initAi();
     console.log('↻ Reloaded config.json');
   } catch (e) {
     console.error('Bad config.json, keeping previous:', e.message);
@@ -50,22 +62,34 @@ function userJid(number) {
 // Does this rule's source set include the given chat?
 //   groups      -> rule.groups (JIDs)
 //   individuals -> rule.forwardAllDMs, or rule.contacts (JID or bare number)
-function ruleMatches(rule, jid) {
+function ruleMatches(rule, jid, altJid) {
   if (jid.endsWith('@g.us')) {
     return Array.isArray(rule.groups) && rule.groups.includes(jid);
   }
   if (rule.forwardAllDMs) return true;
   if (!Array.isArray(rule.contacts)) return false;
-  const num = jid.split('@')[0].replace(/\D/g, '');
-  return rule.contacts.some((c) => c === jid || String(c).replace(/\D/g, '') === num);
+  // WhatsApp may address a DM by an opaque "@lid" instead of the phone number;
+  // remoteJidAlt then carries the phone-number form. Match against both.
+  const nums = [jid, altJid].filter(Boolean).map((j) => j.split('@')[0].replace(/\D/g, ''));
+  return rule.contacts.some((c) => {
+    if (c === jid || c === altJid) return true;          // exact JID (incl. raw @lid)
+    const cd = String(c).replace(/\D/g, '');
+    return cd && nums.includes(cd);                       // phone-number match (via alt too)
+  });
+}
+
+// Does the chat match any forwarding rule? (used for media scope = "watched")
+function anyRuleMatches(jid, altJid) {
+  return Array.isArray(config.rules) && config.rules.some((r) => ruleMatches(r, jid, altJid));
 }
 
 // Human-readable source label for the header message.
 //   manual override (config.chatLabels) → group subject (cached)
 //   → for DMs, sender's pushName + number → JID
 const groupNameCache = new Map();
-async function chatLabel(sock, msg, jid) {
-  if (config.chatLabels && config.chatLabels[jid]) return config.chatLabels[jid];
+async function chatLabel(sock, msg, jid, altJid) {
+  const override = config.chatLabels && (config.chatLabels[jid] || (altJid && config.chatLabels[altJid]));
+  if (override) return override;
 
   if (jid.endsWith('@g.us')) {
     if (groupNameCache.has(jid)) return groupNameCache.get(jid);
@@ -80,18 +104,45 @@ async function chatLabel(sock, msg, jid) {
     return label;
   }
 
-  const number = '+' + jid.split('@')[0];
+  // Prefer the phone-number form for display (jid may be an @lid).
+  const pnJid = jid.endsWith('@s.whatsapp.net') ? jid
+    : (altJid && altJid.endsWith('@s.whatsapp.net') ? altJid : jid);
+  const number = '+' + pnJid.split('@')[0];
   return msg.pushName ? `${msg.pushName} (${number})` : number;
 }
 
 // Skip system/control messages that shouldn't (or can't) be forwarded.
+// WhatsApp often bundles a senderKeyDistributionMessage (group key material) and/or
+// messageContextInfo ALONGSIDE the real message. getContentType ignores those wrappers
+// and returns the true content type, so we don't drop real messages.
 function isForwardable(msg) {
-  const m = msg.message;
-  if (!m) return false;
-  if (m.protocolMessage || m.senderKeyDistributionMessage || m.reactionMessage || m.pollUpdateMessage) {
-    return false;
-  }
-  return Object.keys(m).length > 0;
+  const ct = getContentType(msg.message);
+  if (!ct) return false;                  // pure key-distribution / metadata, no real content
+  if (ct === 'reactionMessage' || ct === 'pollUpdateMessage' || ct === 'protocolMessage') return false;
+  return true;
+}
+
+// Extract the text/caption from a message (unwrapping disappearing-message envelopes).
+function messageText(m) {
+  if (!m) return '';
+  return (
+    m.conversation ||
+    (m.extendedTextMessage && m.extendedTextMessage.text) ||
+    (m.imageMessage && m.imageMessage.caption) ||
+    (m.videoMessage && m.videoMessage.caption) ||
+    (m.documentMessage && m.documentMessage.caption) ||
+    (m.ephemeralMessage && messageText(m.ephemeralMessage.message)) ||
+    (m.viewOnceMessage && messageText(m.viewOnceMessage.message)) ||
+    (m.viewOnceMessageV2 && messageText(m.viewOnceMessageV2.message)) ||
+    ''
+  );
+}
+
+// First few characters of the message, for log visibility. '' if no text (e.g. media).
+function preview(msg, n = 40) {
+  const t = String(messageText(msg.message) || '').replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  return ` "${t.length > n ? t.slice(0, n) + '…' : t}"`;
 }
 
 async function pump() {
@@ -105,15 +156,34 @@ async function pump() {
   pumping = false;
 }
 
-function handle(msg, getSock) {
+function handle(msg, getSock, type) {
   try {
     const jid = msg.key && msg.key.remoteJid;
     if (!jid) return;
-    const kind = msg.message ? Object.keys(msg.message)[0] : 'empty';
-    const who = msg.pushName ? `${msg.pushName} (${jid})` : jid;
-    const v = (reason) => { if (config.verbose) console.log(`·  ${reason}: ${kind} from ${who}`); };
 
-    if (jid === 'status@broadcast' || jid.endsWith('@broadcast') || jid.endsWith('@newsletter')) return v('skip status/broadcast');
+    // Status / broadcast / newsletter: never relevant — skip silently (no log).
+    if (jid === 'status@broadcast' || jid.endsWith('@broadcast') || jid.endsWith('@newsletter')) return;
+
+    const altJid = msg.key.remoteJidAlt || undefined; // phone-number form when jid is an @lid
+    const ct = getContentType(msg.message);
+    const kind = ct || (msg.message ? Object.keys(msg.message)[0] : 'empty');
+    const who = msg.pushName ? `${msg.pushName} (${jid})` : jid;
+    const snip = preview(msg);
+    const tag = type && type !== 'notify' ? `[${type}] ` : '';
+    const v = (reason) => { if (config.verbose) console.log(`·  ${tag}${reason}: ${kind} from ${who}${snip}`); };
+
+    // Archive every real message (both directions, all chats, all delivery types) —
+    // independent of forwarding rules and fully non-blocking (see store.js).
+    if (ct && ct !== 'protocolMessage') {
+      store.persist(msg, getSock(), { watched: anyRuleMatches(jid, altJid) });
+    }
+
+    // Only live ('notify') messages are forwarded; others are logged for visibility only.
+    if (type && type !== 'notify') return v('seen (non-live)');
+
+    // In-group AI assistant (mention + keyword). Fire-and-forget; fully guarded internally.
+    ai.handle(msg, getSock());
+
     if (config.skipFromMe !== false && msg.key.fromMe) return v('skip (you sent it)');
     if (!isForwardable(msg)) return v('skip (non-content)');
     if (!Array.isArray(config.rules) || !config.rules.length) return v('skip (no rules)');
@@ -123,8 +193,8 @@ function handle(msg, getSock) {
     for (const rule of config.rules) {
       const target = userJid(rule.target);
       if (!target) continue;
-      if (jid === target) continue;          // loop guard: never forward a target's own chat back
-      if (ruleMatches(rule, jid)) targets.add(target);
+      if (jid === target || altJid === target) continue;   // loop guard: never forward a target's own chat back
+      if (ruleMatches(rule, jid, altJid)) targets.add(target);
     }
     if (!targets.size) return v('no rule match');
 
@@ -134,7 +204,7 @@ function handle(msg, getSock) {
     if (processed.size > 5000) processed.clear();
 
     if (config.verbose) {
-      console.log(`✦  match: ${kind} from ${who} → ${[...targets].map((t) => t.split('@')[0]).join(', ')}`);
+      console.log(`✦  match: ${kind} from ${who} → ${[...targets].map((t) => t.split('@')[0]).join(', ')}${snip}`);
     }
 
     for (const target of targets) {
@@ -143,13 +213,12 @@ function handle(msg, getSock) {
         if (!sock) throw new Error('socket not connected');
         let label = jid;
         if (config.prefixGroupName !== false) {
-          label = await chatLabel(sock, msg, jid);
+          label = await chatLabel(sock, msg, jid, altJid);
           await sock.sendMessage(target, { text: `📨 *${label}*` });
           await sleep(400); // ensure the header lands before the forward
         }
         await sock.sendMessage(target, { forward: msg });
-        const kind = Object.keys(msg.message)[0];
-        console.log(`→ forwarded ${kind} from "${label}" → ${target.split('@')[0]}`);
+        console.log(`→ forwarded ${kind} from "${label}" → ${target.split('@')[0]}${snip}`);
       });
     }
     pump();
@@ -173,7 +242,7 @@ async function main() {
 
   let getSock;
   getSock = await runSocket({
-    onMessage: (msg) => handle(msg, () => getSock && getSock()),
+    onMessage: (msg, type) => handle(msg, () => getSock && getSock(), type),
   });
 }
 
