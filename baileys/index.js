@@ -15,6 +15,7 @@ const { getContentType } = require('baileys');
 const { runSocket } = require('./socket');
 const store = require('./store');
 const ai = require('./ai');
+const poll = require('./poll');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 
@@ -34,7 +35,12 @@ function initAi() {
   const p = config.persist || {};
   ai.init({ ...(config.ai || {}), region: p.region, tableName: p.tableName, mediaBucket: p.mediaBucket });
 }
+function initPoll() {
+  const p = config.persist || {};
+  poll.init({ model: (config.ai && config.ai.model) || 'gpt-5.4', region: p.region, pollsTable: 'wa-polls' });
+}
 initAi();
+initPoll();
 
 // Hot-reload config so edits take effect without a restart.
 fs.watchFile(CONFIG_PATH, { interval: 1000 }, () => {
@@ -42,6 +48,7 @@ fs.watchFile(CONFIG_PATH, { interval: 1000 }, () => {
     config = loadConfig();
     store.init(config.persist || {});
     initAi();
+    initPoll();
     console.log('↻ Reloaded config.json');
   } catch (e) {
     console.error('Bad config.json, keeping previous:', e.message);
@@ -177,6 +184,9 @@ function handle(msg, getSock, type) {
     if (ct && ct !== 'protocolMessage') {
       store.persist(msg, getSock(), { watched: anyRuleMatches(jid, altJid) });
     }
+
+    // Poll votes: decrypt + log (fire-and-forget, guarded). Arrives on upsert.
+    if (ct === 'pollUpdateMessage') poll.handleVote(msg, getSock());
 
     // Only live ('notify') messages are forwarded; others are logged for visibility only.
     if (type && type !== 'notify') return v('seen (non-live)');

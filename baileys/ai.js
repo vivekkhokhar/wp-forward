@@ -21,6 +21,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { jidNormalizedUser, downloadMediaMessage } = require('baileys');
 const { RekognitionClient, DetectFacesCommand, SearchFacesByImageCommand } = require('@aws-sdk/client-rekognition');
 const sharp = require('sharp');
+const poll = require('./poll');
 
 let cfg = {};
 let ddb = null;
@@ -361,6 +362,7 @@ const DEFAULT_SYSTEM =
   '- get_history / search_history: read past messages (to summarize or answer about the conversation).\n' +
   '- list_images then view_image (or view_image with last=true): to SEE a picture when the question is about an image.\n' +
   '- identify_people: name WHO appears in a photo and WHERE (left-to-right, by row) using the enrolled face database — use for "who is this / who\'s in this photo / who is who".\n' +
+  '- read_poll: a poll\'s result, options, deadline, and who voted for what & when — use for "what did the poll decide / who voted for X / poll result".\n' +
   '- web_search: for general knowledge or current facts not in the chat.\n' +
   'To point the user at a specific earlier message, find it with search_history (results show each [#id]) and put [[QUOTE:<id>]] on its own line at the END of your reply — your reply will then quote that message. Quote only when it adds real context; never write an id or a [[...]] marker as visible prose.\n' +
   'To SHARE actual media (re-send a photo/video/document/audio from the chat so the user sees the file itself), put [[SEND:<id>]] on its own line — the bot re-sends that media. Find the id via list_images (photos) or search_history. Use [[SEND]] for media files; use [[QUOTE]] to point at a text message.\n' +
@@ -399,6 +401,8 @@ function toolDefs() {
       parameters: { type: 'object', properties: { id: { type: 'string' }, last: { type: 'boolean' } }, additionalProperties: false } },
     { type: 'function', name: 'identify_people', description: 'Identify WHO is in a photo using the enrolled face database, returning recognized names in their POSITION (rows top-to-bottom, left-to-right) so you can say who is where. Use when asked who is in an image or "who is who". Pass an id from list_images, or last=true for the most recent image; if the user replied to a photo, omit both to use the replied-to image.',
       parameters: { type: 'object', properties: { id: { type: 'string' }, last: { type: 'boolean' } }, additionalProperties: false } },
+    { type: 'function', name: 'read_poll', description: 'Read a poll\'s result, options, deadline, and who voted for what & when. Use for "what did the poll decide / who voted for X / poll result". Pass the poll\'s message id (the [#id] from search_history). Result reflects votes up to the cutoff; late votes are noted separately.',
+      parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
   ];
   if (cfg.webSearch !== false) tools.push({ type: 'web_search' });
   return tools;
@@ -457,6 +461,19 @@ async function executeTool(name, args, ctx) {
     if (!r.total) return { output: `No faces detected in ${label}.` };
     const recognized = r.faces.filter((f) => f.name).length;
     return { output: `${label}: ${r.total} face(s), ${recognized} recognized. ${describeLayout(r.faces)}`.trim() };
+  }
+  if (name === 'read_poll') {
+    const p = poll.getPoll(args.id);
+    if (!p) return { output: 'No tracked poll with that id (only polls created while the bot was running, within 30 days, are tracked).' };
+    const nm = (jid, fallback) => contactName(jid) || (numberOf(jid) && contacts[numberOf(jid)]) || fallback || ('+' + (numberOf(jid) || jid));
+    const lines = (p.options || []).map((o) => {
+      const voters = p.tally[o] || [];
+      const who = voters.map((x) => `${nm(x.voter, x.name)} (${fmtTs(x.at, ctx.tz)})`).join(', ');
+      return `• ${o} — ${voters.length}${voters.length ? ': ' + who : ''}`;
+    });
+    let out = `Poll: "${p.question}" — ${p.status} (${p.status === 'closed' ? 'closed' : 'closes'} ${fmtTs(p.deadline, ctx.tz)}; ${p.selectable > 1 ? 'multi-select' : 'single-choice'}).\n${lines.join('\n')}`;
+    if (p.lateCount) out += `\n(${p.lateCount} vote${p.lateCount > 1 ? 's' : ''} cast after close — recorded but not counted in the result)`;
+    return { output: out };
   }
   return { output: `Unknown tool: ${name}` };
 }

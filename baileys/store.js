@@ -14,6 +14,7 @@ const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
 const { S3Client } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
+const poll = require('./poll');
 
 let cfg = {};
 let ddb = null;
@@ -143,6 +144,29 @@ function buildItem(msg) {
   };
 }
 
+// Poll creation: capture question/options/deadline for history, and hand the
+// encryption secret to poll.js (stored in wa-polls, not in the message archive).
+async function enrichPollCreation(item, msg, sock) {
+  const m = unwrap(msg.message) || {};
+  const node = m[item.type] || {};
+  const question = node.name || '';
+  const options = (node.options || []).map((o) => o && o.optionName).filter(Boolean);
+  const secret = m.messageContextInfo && m.messageContextInfo.messageSecret;
+  item.pollQuestion = question || undefined;
+  item.pollOptions = options.length ? options : undefined;
+  item.pollSelectable = node.selectableOptionsCount || 0; // 0/1 = single-choice, >1 = multi
+  item.pollStatus = 'open';
+  item.pollDeadline = await poll.computeDeadline(question, item.timestamp);
+  if (!item.text) item.text = `📊 Poll: "${question}"${options.length ? ` — options: ${options.join(' / ')}` : ''}`;
+  if (secret) {
+    await poll.register({
+      pollMsgId: item.messageId, chatJid: item.chatJid, question, options,
+      secret: Buffer.from(secret).toString('base64'), deadline: item.pollDeadline,
+      selectable: item.pollSelectable, createdAt: item.timestamp,
+    }, msg, sock);
+  }
+}
+
 async function uploadMedia(msg, sock, item) {
   const type = mediaTypeOf(msg.message);
   const node = unwrap(msg.message)[type];
@@ -165,6 +189,9 @@ async function uploadMedia(msg, sock, item) {
 async function save(msg, sock, ctx) {
   const item = buildItem(msg);
   item.chatName = item.isGroup ? await groupName(item.chatJid, sock) : dmName(msg, item);
+  if (item.type && item.type.indexOf('pollCreation') === 0) {
+    try { await enrichPollCreation(item, msg, sock); } catch (e) { console.error('[store] poll enrich failed:', e && e.message); }
+  }
   const wantMedia = mediaTypeOf(msg.message) && (cfg.mediaScope === 'all' || ctx.watched);
   if (wantMedia) {
     try {
