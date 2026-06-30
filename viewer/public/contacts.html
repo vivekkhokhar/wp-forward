@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contacts — wa-contacts</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: #eae6df; }
+    #capp { max-width: 780px; margin: 0 auto; padding: 16px; }
+    .chead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .chead h1 { font-size: 18px; margin: 0; }
+    .chead #count { color: #667781; font-size: 13px; flex: 1; }
+    .chead a { color: #1da851; text-decoration: none; font-size: 13px; font-weight: 600; }
+    .bar { display: flex; gap: 8px; margin-bottom: 10px; }
+    input.f { padding: 8px 10px; border: 1px solid #d0d5da; border-radius: 8px; font-size: 13px; }
+    #csearch { flex: 1; }
+    .addrow input.num { width: 190px; } .addrow input.nm { flex: 1; }
+    button.btn { border: 0; background: #1da851; color: #fff; border-radius: 8px; padding: 0 14px; cursor: pointer; font-size: 13px; }
+    button.btn.sec { background: #f0f2f5; color: #111b21; font-size: 16px; }
+    button.btn.del { background: #fbe9e7; color: #c0392b; padding: 4px 10px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+    th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #f0f2f5; font-size: 13.5px; vertical-align: middle; }
+    th { background: #f6f7f8; color: #667781; font-weight: 600; font-size: 12px; }
+    td.num { color: #667781; font-variant-numeric: tabular-nums; white-space: nowrap; width: 160px; }
+    td .ed { width: 100%; border: 1px solid transparent; background: transparent; padding: 5px 6px; border-radius: 6px; font: inherit; }
+    td .ed:hover { border-color: #e3e6e8; }
+    td .ed:focus { border-color: #1da851; background: #fff; outline: none; }
+    td.actions { text-align: right; white-space: nowrap; width: 80px; }
+    .muted { color: #8696a0; }
+    #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #111b21; color: #fff; padding: 9px 16px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    #toast.show { opacity: .96; }
+  </style>
+</head>
+<body>
+  <div id="capp">
+    <div class="chead">
+      <h1>Contacts</h1>
+      <span id="count" class="muted">…</span>
+      <a href="/faces.html">Faces</a>
+      <a href="/merge.html">Merge</a>
+      <a href="/">← Chats</a>
+    </div>
+    <div class="bar addrow">
+      <input id="addNum" class="f num" placeholder="Phone (e.g. 9312249660)" />
+      <input id="addName" class="f nm" placeholder="Name" />
+      <button id="addBtn" class="btn">Add</button>
+    </div>
+    <div class="bar">
+      <input id="csearch" class="f" type="search" placeholder="Search name or number…" />
+      <button id="creload" class="btn sec" title="Reload">⟳</button>
+    </div>
+    <table>
+      <thead><tr><th>Name</th><th>Number</th><th class="actions"></th></tr></thead>
+      <tbody id="crows"></tbody>
+    </table>
+  </div>
+  <div id="toast"></div>
+  <script src="contacts.js"></script>
+</body>
+</html>

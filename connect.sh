@@ -8,4 +8,5 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 source ./instance.env
+./whitelist-ip.sh || true   # ensure current IP can SSH (handles IP rotation)
 exec ssh -i "$WA_KEY" "$WA_USER@$WA_HOST" "$@"

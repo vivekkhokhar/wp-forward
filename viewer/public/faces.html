@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Face enrollment — wa-faces</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: #eae6df; }
+    #fapp { max-width: 900px; margin: 0 auto; padding: 16px; }
+    .fhead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .fhead h1 { font-size: 18px; margin: 0; }
+    .fhead .links { margin-left: auto; display: flex; gap: 14px; }
+    .fhead a { color: #1da851; text-decoration: none; font-size: 13px; font-weight: 600; }
+    .panel { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+    .panel h2 { font-size: 13px; color: #667781; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .04em; }
+    input.f, button.btn { font-size: 13px; }
+    input.f { padding: 7px 9px; border: 1px solid #d0d5da; border-radius: 8px; }
+    button.btn { border: 0; background: #1da851; color: #fff; border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+    button.btn:disabled { opacity: .5; cursor: default; }
+    button.btn.del { background: #fbe9e7; color: #c0392b; padding: 5px 10px; }
+    .uploadrow { display: flex; align-items: center; gap: 12px; }
+    #detectStatus { color: #667781; font-size: 13px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 4px; }
+    .facecard { border: 1px solid #eef0f1; border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .facecard.done { border-color: #1da851; background: #f3fbf2; }
+    .facecard img { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 8px; background: #f0f2f5; }
+    .facecard .assign { width: 100%; }
+    .facecard .st { font-size: 12px; min-height: 14px; }
+    .muted { color: #8696a0; }
+    .erow { display: flex; align-items: center; gap: 6px; padding: 7px 4px; border-bottom: 1px solid #f0f2f5; }
+    .erow .enm { font-weight: 600; }
+    .erow .del { margin-left: auto; }
+    #empty { color: #8696a0; font-size: 13px; }
+    #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #111b21; color: #fff; padding: 9px 16px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    #toast.show { opacity: .96; }
+  </style>
+</head>
+<body>
+  <div id="fapp">
+    <div class="fhead">
+      <h1>Face enrollment</h1>
+      <span class="links"><a href="/">← Chats</a><a href="/contacts.html">Contacts</a><a href="/merge.html">Merge</a></span>
+    </div>
+
+    <div class="panel">
+      <h2>1 · Upload a group photo</h2>
+      <div class="uploadrow">
+        <input id="file" class="f" type="file" accept="image/*" />
+        <span id="detectStatus" class="muted">Pick a photo — faces will be detected and cropped.</span>
+      </div>
+      <div id="faces" class="grid"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Enrolled · <span id="enrolledCount" class="muted">…</span></h2>
+      <div id="enrolled"></div>
+      <div id="empty" style="display:none">No faces enrolled yet.</div>
+    </div>
+  </div>
+  <datalist id="contactsDL"></datalist>
+  <div id="toast"></div>
+  <script src="faces.js"></script>
+</body>
+</html>

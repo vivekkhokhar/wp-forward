@@ -10,6 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 source ./instance.env
+./whitelist-ip.sh || true   # ensure current IP can SSH (handles IP rotation)
 
 SRC="$(pwd)/baileys/"
 SSH_OPTS=(-i "$WA_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)

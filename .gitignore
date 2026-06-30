@@ -17,6 +17,12 @@ instance.env
 # Personal config — contains phone numbers & group IDs (incl. third parties)
 baileys/config.json
 
+# Contacts export + derived name/face data — PII of third parties. Never commit.
+*.vcf
+*.csv
+baileys/contacts.json
+baileys/faces.json
+
 # === Dependencies & build ===
 node_modules/
 

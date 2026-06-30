@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Merge contacts</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: #eae6df; }
+    #mapp { max-width: 780px; margin: 0 auto; padding: 16px 16px 90px; }
+    .mhead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .mhead h1 { font-size: 18px; margin: 0; }
+    .mhead #count { color: #667781; font-size: 13px; flex: 1; }
+    .mhead a { color: #1da851; text-decoration: none; font-size: 13px; font-weight: 600; }
+    .bar { display: flex; gap: 8px; margin-bottom: 10px; }
+    input.f, select.f { padding: 8px 10px; border: 1px solid #d0d5da; border-radius: 8px; font-size: 13px; }
+    #msearch { flex: 1; }
+    .hint { color: #8696a0; font-size: 12px; margin: -4px 0 10px; }
+    .plist { background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+    .prow { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #f0f2f5; cursor: pointer; }
+    .prow:hover { background: #f7f8f9; }
+    .prow input { width: 16px; height: 16px; }
+    .prow .nm { font-weight: 600; }
+    .prow .meta { color: #8696a0; font-size: 12px; }
+    .muted { color: #8696a0; }
+    #mergebar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #d9dbdd; padding: 10px 16px; display: none; gap: 10px; align-items: center; box-shadow: 0 -1px 4px rgba(0,0,0,.06); }
+    #mergebar.show { display: flex; }
+    #mergebar .sel { font-weight: 600; white-space: nowrap; }
+    button.btn { border: 0; background: #1da851; color: #fff; border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 13px; }
+    button.btn.sec { background: #f0f2f5; color: #111b21; }
+    select#keepname { max-width: 200px; }
+    #customname { width: 150px; }
+    #toast { position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); background: #111b21; color: #fff; padding: 9px 16px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    #toast.show { opacity: .96; }
+  </style>
+</head>
+<body>
+  <div id="mapp">
+    <div class="mhead">
+      <h1>Merge contacts</h1>
+      <span id="count" class="muted">…</span>
+      <a href="/contacts.html">Contacts</a><a href="/faces.html">Faces</a><a href="/">← Chats</a>
+    </div>
+    <div class="bar"><input id="msearch" class="f" type="search" placeholder="Search to find duplicates (e.g. Dhanesh)…" /></div>
+    <div class="hint">Tick 2+ people who are the same person, pick the name to keep, then Merge. 📷 = has an enrolled face.</div>
+    <div id="plist" class="plist"></div>
+  </div>
+  <div id="mergebar">
+    <span class="sel" id="selcount">0 selected</span>
+    <span class="muted">keep name:</span>
+    <select id="keepname" class="f"></select>
+    <input id="customname" class="f" placeholder="or type a name" />
+    <button id="mergebtn" class="btn">Merge</button>
+    <button id="clearsel" class="btn sec">Clear</button>
+  </div>
+  <div id="toast"></div>
+  <script src="merge.js"></script>
+</body>
+</html>
